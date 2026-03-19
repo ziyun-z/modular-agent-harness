@@ -1,0 +1,34 @@
+experiment_name: "rag_memory_no_compression_single_agent"
+
+model: "claude-sonnet-4-6"
+
+orchestrator:
+  max_steps: 50
+  max_tokens_context: 100000
+  memory_token_budget: 20000
+  compression_target: 0.6
+
+memory:
+  type: "rag"
+  params:
+    embedding_model: "all-MiniLM-L6-v2"
+    top_k: 20
+    chunk_strategy: "per_tool_result"
+
+compression:
+  type: "none"
+  params: {}
+
+communication:
+  type: "single_agent"
+  params: {}
+
+evaluation:
+  dataset: "swebench_lite"
+  task_ids: null
+  num_tasks: 50
+  seed: 42
+
+sandbox:
+  docker_image: "swebench-sandbox:latest"
+  timeout_per_task: 600

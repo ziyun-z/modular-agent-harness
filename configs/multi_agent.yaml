@@ -1,0 +1,33 @@
+experiment_name: "naive_memory_no_compression_orchestrated"
+
+model: "claude-sonnet-4-6"
+
+orchestrator:
+  max_steps: 50
+  max_tokens_context: 100000
+  memory_token_budget: 20000
+  compression_target: 0.6
+
+memory:
+  type: "naive"
+  params: {}
+
+compression:
+  type: "none"
+  params: {}
+
+communication:
+  type: "orchestrated"
+  params:
+    specialist_max_steps: 10
+    specialist_summary_max_tokens: 1000
+
+evaluation:
+  dataset: "swebench_lite"
+  task_ids: null
+  num_tasks: 50
+  seed: 42
+
+sandbox:
+  docker_image: "swebench-sandbox:latest"
+  timeout_per_task: 600
