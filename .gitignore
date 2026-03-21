@@ -6,3 +6,4 @@ dist/
 build/
 .env
 experiments/results/*.json
+.venv/
