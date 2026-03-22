@@ -95,6 +95,10 @@ class SingleAgentCommunication(CommunicationModule):
         """Inject the sandbox after setup (used by orchestrator)."""
         self._sandbox = sandbox
 
+    def set_memory(self, memory: "MemoryModule") -> None:
+        """Inject the memory module after setup (used by orchestrator)."""
+        self._memory = memory
+
     def run_step(
         self,
         llm_client: "LLMClient",

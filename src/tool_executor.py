@@ -24,7 +24,7 @@ output is shown as:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 import tiktoken
 
@@ -244,8 +244,39 @@ class ToolExecutor:
                     result = f"Error: {e}"
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        docker_image: str = "swebench-sandbox:latest",
+        timeout_per_task: int = 600,
+    ) -> None:
         self._encoding = tiktoken.get_encoding("cl100k_base")
+        self._docker_image = docker_image
+        self._timeout_per_task = timeout_per_task
+        self._sandbox: Optional[DockerSandbox] = None
+
+    # ------------------------------------------------------------------
+    # Sandbox lifecycle (called by orchestrator)
+    # ------------------------------------------------------------------
+
+    def setup_sandbox(self, task) -> DockerSandbox:
+        """
+        Create, start, and return a DockerSandbox for the given task.
+        Stores a reference so teardown_sandbox() can clean it up.
+        """
+        from src.sandbox import DockerSandbox as _DockerSandbox
+        sandbox = _DockerSandbox(
+            docker_image=self._docker_image,
+            timeout_per_task=self._timeout_per_task,
+        )
+        sandbox.setup(task)
+        self._sandbox = sandbox
+        return sandbox
+
+    def teardown_sandbox(self) -> None:
+        """Stop and remove the current sandbox container."""
+        if self._sandbox is not None:
+            self._sandbox.teardown()
+            self._sandbox = None
 
     # ------------------------------------------------------------------
     # Public API

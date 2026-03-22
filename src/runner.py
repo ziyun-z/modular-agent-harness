@@ -18,11 +18,22 @@ from rich.panel import Panel
 
 console = Console()
 
-# Registry maps config strings → implementation classes.
-# Populated as modules are implemented.
-MEMORY_REGISTRY: dict[str, type] = {}
-COMPRESSION_REGISTRY: dict[str, type] = {}
-COMMUNICATION_REGISTRY: dict[str, type] = {}
+# ---------------------------------------------------------------------------
+# Module registries  (config string → implementation class)
+# ---------------------------------------------------------------------------
+from src.memory.naive import NaiveMemory
+from src.compression.none import NoCompression
+from src.communication.single_agent import SingleAgentCommunication
+
+MEMORY_REGISTRY: dict[str, type] = {
+    "naive": NaiveMemory,
+}
+COMPRESSION_REGISTRY: dict[str, type] = {
+    "none": NoCompression,
+}
+COMMUNICATION_REGISTRY: dict[str, type] = {
+    "single_agent": SingleAgentCommunication,
+}
 
 
 def load_config(config_path: str) -> dict:
@@ -85,8 +96,12 @@ def run_single_task(cfg: dict, task_id: str) -> None:
 
     orch_cfg = OrchestratorConfig(**cfg.get("orchestrator", {}))
     llm = LLMClient(model=cfg.get("model", "claude-sonnet-4-6"))
-    tools = ToolExecutor()
-    logger = TrajectoryLogger()
+    sandbox_cfg = cfg.get("sandbox", {})
+    tools = ToolExecutor(
+        docker_image=sandbox_cfg.get("docker_image", "swebench-sandbox:latest"),
+        timeout_per_task=sandbox_cfg.get("timeout_per_task", 600),
+    )
+    traj_logger = TrajectoryLogger()
 
     orchestrator = Orchestrator(
         config=orch_cfg,
@@ -95,18 +110,20 @@ def run_single_task(cfg: dict, task_id: str) -> None:
         communication=communication,
         llm_client=llm,
         tool_executor=tools,
-        logger=logger,
+        logger=traj_logger,
     )
 
     result = orchestrator.run_task(task)
 
     status = "[green]PASSED[/green]" if result.passed else "[red]FAILED[/red]"
     console.print(f"\nResult: {status} | Steps: {result.steps} | Cost: ${result.estimated_cost_usd:.4f}")
+    if result.error:
+        console.print(f"[yellow]Error: {result.error}[/yellow]")
 
     output_dir = Path("experiments/results")
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / f"{task_id}.json"
-    logger.save(str(out_path))
+    traj_logger.save(str(out_path))
     console.print(f"Trajectory saved to {out_path}")
 
 
