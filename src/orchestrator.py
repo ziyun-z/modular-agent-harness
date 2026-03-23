@@ -112,6 +112,8 @@ class Orchestrator:
         self.logger.start_task(task.instance_id)
 
         sandbox = None
+        patch = ""
+        passed = False
         try:
             # 1. Start sandbox
             sandbox = self.tool_executor.setup_sandbox(task)
@@ -181,22 +183,15 @@ class Orchestrator:
                     logger.info("Task %s done at step %d", task.instance_id, step)
                     break
 
+            # 4. Extract patch and score (sandbox still running)
+            patch = sandbox.get_diff()
+            passed = self._run_tests(sandbox, task)
+
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
             logger.error("Task %s crashed at step %d: %s", task.instance_id, step, error)
         finally:
             self.tool_executor.teardown_sandbox()
-
-        # 4. Extract patch and score
-        patch = ""
-        passed = False
-        if sandbox is not None and error is None:
-            try:
-                patch = sandbox.get_diff()
-                passed = self._run_tests(sandbox, task)
-            except Exception as exc:
-                error = error or f"Scoring failed: {exc}"
-                logger.error("Scoring error for %s: %s", task.instance_id, exc)
 
         llm_stats = self.llm.get_stats()
         return TaskResult(

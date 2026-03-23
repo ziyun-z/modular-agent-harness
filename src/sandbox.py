@@ -259,7 +259,7 @@ class DockerSandbox:
     def _clone_repo(self, repo: str, base_commit: str) -> None:
         repo_url = f"https://github.com/{repo}.git"
         result = self._run(
-            f"git clone --quiet {repo_url} {self.REPO_DIR} 2>&1",
+            f"git clone --quiet --filter=blob:none {repo_url} {self.REPO_DIR} 2>&1",
             timeout=300,
         )
         if not result.ok:
