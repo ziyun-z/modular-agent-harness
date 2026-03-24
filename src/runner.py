@@ -24,12 +24,16 @@ console = Console()
 # ---------------------------------------------------------------------------
 from src.memory.naive import NaiveMemory
 from src.memory.scratchpad import ScratchpadMemory
+from src.memory.rag import RAGMemory
+from src.memory.hybrid import HybridMemory
 from src.compression.none import NoCompression
 from src.communication.single_agent import SingleAgentCommunication
 
 MEMORY_REGISTRY: dict[str, type] = {
     "naive": NaiveMemory,
     "scratchpad": ScratchpadMemory,
+    "rag": RAGMemory,
+    "hybrid": HybridMemory,
 }
 COMPRESSION_REGISTRY: dict[str, type] = {
     "none": NoCompression,
@@ -135,6 +139,9 @@ def _register_memory_tools(memory, tool_executor) -> None:
     if isinstance(memory, ScratchpadMemory):
         from src.memory.scratchpad import TOOL_DEFINITION
         tool_executor.register_tool(TOOL_DEFINITION, memory.handle_tool_call)
+    elif isinstance(memory, HybridMemory):
+        from src.memory.hybrid import KNOWLEDGE_TOOL_DEFINITION
+        tool_executor.register_tool(KNOWLEDGE_TOOL_DEFINITION, memory.handle_knowledge_tool_call)
 
 
 def run_single_task(cfg: dict, task_id: str):
