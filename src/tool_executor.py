@@ -24,7 +24,7 @@ output is shown as:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import tiktoken
 
@@ -253,6 +253,9 @@ class ToolExecutor:
         self._docker_image = docker_image
         self._timeout_per_task = timeout_per_task
         self._sandbox: Optional[DockerSandbox] = None
+        # Extra tools registered at runtime (e.g. update_scratchpad)
+        self._extra_definitions: list[dict[str, Any]] = []
+        self._extra_handlers: dict[str, Callable[[dict, DockerSandbox], str]] = {}
 
     # ------------------------------------------------------------------
     # Sandbox lifecycle (called by orchestrator)
@@ -279,13 +282,35 @@ class ToolExecutor:
             self._sandbox = None
 
     # ------------------------------------------------------------------
+    # Dynamic tool registration
+    # ------------------------------------------------------------------
+
+    def register_tool(
+        self,
+        definition: dict[str, Any],
+        handler: Callable[[dict, DockerSandbox], str],
+    ) -> None:
+        """
+        Register an additional tool at runtime.
+
+        Args:
+            definition: Anthropic tool schema dict (must have a "name" key).
+            handler:    Callable(tool_input, sandbox) → result_string.
+                        The handler is responsible for its own error handling.
+        """
+        name = definition["name"]
+        self._extra_definitions.append(definition)
+        self._extra_handlers[name] = handler
+        logger.debug("Registered extra tool: %s", name)
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     @property
     def tool_definitions(self) -> list[dict[str, Any]]:
         """Return the list of tool definitions to pass to LLMClient.complete()."""
-        return TOOL_DEFINITIONS
+        return TOOL_DEFINITIONS + self._extra_definitions
 
     def execute(
         self,
@@ -316,7 +341,7 @@ class ToolExecutor:
             "search_code":  self._search_code,
             "list_files":   self._list_files,
             "submit_patch": self._submit_patch,
-        }.get(tool_name)
+        }.get(tool_name) or self._extra_handlers.get(tool_name)
 
         if handler is None:
             raise ToolError(f"Unknown tool: '{tool_name}'")

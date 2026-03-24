@@ -23,11 +23,13 @@ console = Console()
 # Module registries  (config string → implementation class)
 # ---------------------------------------------------------------------------
 from src.memory.naive import NaiveMemory
+from src.memory.scratchpad import ScratchpadMemory
 from src.compression.none import NoCompression
 from src.communication.single_agent import SingleAgentCommunication
 
 MEMORY_REGISTRY: dict[str, type] = {
     "naive": NaiveMemory,
+    "scratchpad": ScratchpadMemory,
 }
 COMPRESSION_REGISTRY: dict[str, type] = {
     "none": NoCompression,
@@ -128,6 +130,13 @@ def build_communication_module(cfg: dict):
     return COMMUNICATION_REGISTRY[comm_type](**params)
 
 
+def _register_memory_tools(memory, tool_executor) -> None:
+    """Register any memory-module-specific tools with the tool executor."""
+    if isinstance(memory, ScratchpadMemory):
+        from src.memory.scratchpad import TOOL_DEFINITION
+        tool_executor.register_tool(TOOL_DEFINITION, memory.handle_tool_call)
+
+
 def run_single_task(cfg: dict, task_id: str):
     """Run one task end-to-end. Returns the TaskResult."""
     from src.orchestrator import Orchestrator, OrchestratorConfig
@@ -152,6 +161,8 @@ def run_single_task(cfg: dict, task_id: str):
         docker_image=sandbox_cfg.get("docker_image", "swebench-sandbox:latest"),
         timeout_per_task=sandbox_cfg.get("timeout_per_task", 600),
     )
+    # Register memory-specific tools (e.g. update_scratchpad for ScratchpadMemory)
+    _register_memory_tools(memory, tools)
     traj_logger = TrajectoryLogger()
 
     orchestrator = Orchestrator(
