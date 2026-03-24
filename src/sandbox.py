@@ -194,24 +194,29 @@ class DockerSandbox:
 
     def run_tests(self, test_ids: list[str], timeout: int = 120) -> dict:
         """
-        Run specific pytest test IDs. Returns structured result dict with:
-            passed, failed, error, exit_code, output
+        Run specific test IDs and return structured results.
+
+        Detects whether the repo uses Django's custom test runner (runtests.py)
+        or standard pytest, and invokes the correct runner automatically.
+
+        Returns:
+            {
+                "passed":    list of passing test names,
+                "failed":    list of failing test names,
+                "error":     top-level error string or None,
+                "exit_code": int,
+                "output":    full stdout/stderr as a string,
+            }
         """
         if not test_ids:
             return {"passed": [], "failed": [], "error": None, "exit_code": 0, "output": ""}
 
-        test_spec = " ".join(f'"{t}"' for t in test_ids)
-        result = self._run(
-            f"cd {self.REPO_DIR} && python -m pytest {test_spec} -v --tb=short --no-header 2>&1",
-            timeout=timeout,
-        )
+        if self._is_django_repo():
+            result = self._run_django_tests(test_ids, timeout)
+        else:
+            result = self._run_pytest_tests(test_ids, timeout)
 
-        passed, failed = [], []
-        for line in result.stdout.splitlines():
-            if " PASSED" in line:
-                passed.append(line.strip())
-            elif " FAILED" in line or " ERROR" in line:
-                failed.append(line.strip())
+        passed, failed = self._parse_test_output(result.stdout)
 
         return {
             "passed": passed,
@@ -220,6 +225,76 @@ class DockerSandbox:
             "exit_code": result.exit_code,
             "output": result.stdout,
         }
+
+    def _is_django_repo(self) -> bool:
+        """Return True if this repo uses Django's runtests.py test runner."""
+        check = self._run(
+            f"test -f {self.REPO_DIR}/tests/runtests.py && echo yes || echo no"
+        )
+        return check.stdout.strip() == "yes"
+
+    def _run_django_tests(self, test_ids: list[str], timeout: int) -> "ExecResult":
+        """
+        Run tests via Django's runtests.py.
+
+        SWE-bench test IDs look like:
+            tests/auth_tests/test_tokens.py::TokenGeneratorTest::test_make_token
+
+        Django's runtests.py expects dotted module names like:
+            auth_tests.test_tokens
+
+        So we strip the leading "tests/", drop the filename extension,
+        replace "/" with ".", and discard the "::ClassName::method" suffix.
+        """
+        modules: set[str] = set()
+        for tid in test_ids:
+            # Normalise: strip leading "tests/" if present
+            tid = tid.replace("\\", "/")
+            if tid.startswith("tests/"):
+                tid = tid[len("tests/"):]
+            # Drop class / method suffix (everything from "::" onward)
+            tid = tid.split("::")[0]
+            # Drop .py extension and convert path separators to dots
+            module = tid.replace(".py", "").replace("/", ".")
+            modules.add(module)
+
+        spec = " ".join(sorted(modules))
+        return self._run(
+            f"cd {self.REPO_DIR} && python tests/runtests.py --verbosity=2 {spec} 2>&1",
+            timeout=timeout,
+        )
+
+    def _run_pytest_tests(self, test_ids: list[str], timeout: int) -> "ExecResult":
+        """Run tests via standard pytest."""
+        test_spec = " ".join(f'"{t}"' for t in test_ids)
+        return self._run(
+            f"cd {self.REPO_DIR} && python -m pytest {test_spec} -v --tb=short --no-header 2>&1",
+            timeout=timeout,
+        )
+
+    def _parse_test_output(self, output: str) -> tuple[list[str], list[str]]:
+        """
+        Parse test runner output and return (passed, failed) name lists.
+
+        Handles both pytest and Django runtests.py output formats:
+          pytest:  "tests/foo.py::Bar::test_baz PASSED"
+          django:  "test_baz (auth_tests.test_tokens.TokenGeneratorTest) ... ok"
+                   "test_baz (auth_tests.test_tokens.TokenGeneratorTest) ... FAIL"
+        """
+        passed, failed = [], []
+        for line in output.splitlines():
+            line_s = line.strip()
+            # pytest format
+            if " PASSED" in line_s:
+                passed.append(line_s)
+            elif " FAILED" in line_s or " ERROR" in line_s:
+                failed.append(line_s)
+            # Django unittest format
+            elif line_s.endswith(" ... ok") or line_s.endswith(" ... OK"):
+                passed.append(line_s)
+            elif line_s.endswith(" ... FAIL") or line_s.endswith(" ... ERROR"):
+                failed.append(line_s)
+        return passed, failed
 
     # ------------------------------------------------------------------
     # Internal helpers
