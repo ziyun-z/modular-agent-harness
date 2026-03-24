@@ -27,6 +27,7 @@ from src.memory.scratchpad import ScratchpadMemory
 from src.memory.rag import RAGMemory
 from src.memory.hybrid import HybridMemory
 from src.compression.none import NoCompression
+from src.compression.rolling_summary import RollingSummaryCompression
 from src.communication.single_agent import SingleAgentCommunication
 
 MEMORY_REGISTRY: dict[str, type] = {
@@ -37,6 +38,7 @@ MEMORY_REGISTRY: dict[str, type] = {
 }
 COMPRESSION_REGISTRY: dict[str, type] = {
     "none": NoCompression,
+    "rolling_summary": RollingSummaryCompression,
 }
 COMMUNICATION_REGISTRY: dict[str, type] = {
     "single_agent": SingleAgentCommunication,

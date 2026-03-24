@@ -1,0 +1,35 @@
+experiment_name: "rolling_summary_compression_naive_memory_single_agent"
+
+model: "claude-sonnet-4-6"
+
+orchestrator:
+  max_steps: 50
+  max_tokens_context: 100000
+  memory_token_budget: 20000
+  compression_target: 0.6
+
+memory:
+  type: "naive"
+  params: {}
+
+compression:
+  type: "rolling_summary"
+  params:
+    trigger_ratio: 0.8       # compress when turns exceed 80% of max_tokens_context
+    keep_recent: 10          # keep the 10 most recent turns verbatim
+    summary_model: "claude-haiku-4-5-20251001"  # cheaper model for summarization
+    max_summary_tokens: 1000
+
+communication:
+  type: "single_agent"
+  params: {}
+
+evaluation:
+  dataset: "swebench_lite"
+  task_ids: null
+  num_tasks: 50
+  seed: 42
+
+sandbox:
+  docker_image: "swebench-sandbox:latest"
+  timeout_per_task: 600   # seconds
