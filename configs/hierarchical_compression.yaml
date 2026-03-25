@@ -1,4 +1,4 @@
-experiment_name: "naive_memory_hierarchical_compression_single_agent"
+experiment_name: "hierarchical_compression_naive_memory_single_agent"
 
 model: "claude-sonnet-4-6"
 
@@ -15,10 +15,12 @@ memory:
 compression:
   type: "hierarchical"
   params:
-    trigger_threshold: 0.8
-    phase_interval: 10
-    mission_update_interval: 20
-    max_landmarks: 15
+    trigger_ratio: 0.8        # compress when turns exceed 80% of max_tokens_context
+    keep_recent: 10           # keep the 10 most recent regular turns verbatim
+    max_phases: 5             # max phase summaries before rolling up into mission
+    summary_model: "claude-haiku-4-5-20251001"  # cheaper model for summarization
+    max_phase_tokens: 300     # max tokens per phase summary paragraph
+    max_mission_tokens: 500   # max tokens for the mission summary
 
 communication:
   type: "single_agent"
@@ -32,4 +34,4 @@ evaluation:
 
 sandbox:
   docker_image: "swebench-sandbox:latest"
-  timeout_per_task: 600
+  timeout_per_task: 600   # seconds
