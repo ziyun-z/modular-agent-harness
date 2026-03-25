@@ -30,6 +30,7 @@ from src.compression.none import NoCompression
 from src.compression.rolling_summary import RollingSummaryCompression
 from src.compression.hierarchical import HierarchicalCompression
 from src.communication.single_agent import SingleAgentCommunication
+from src.communication.orchestrated import OrchestratedCommunication
 
 MEMORY_REGISTRY: dict[str, type] = {
     "naive": NaiveMemory,
@@ -44,6 +45,7 @@ COMPRESSION_REGISTRY: dict[str, type] = {
 }
 COMMUNICATION_REGISTRY: dict[str, type] = {
     "single_agent": SingleAgentCommunication,
+    "orchestrated": OrchestratedCommunication,
 }
 
 # ---------------------------------------------------------------------------
